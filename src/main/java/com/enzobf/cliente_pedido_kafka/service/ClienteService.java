@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import com.enzobf.cliente_pedido_kafka.dto.request.ClienteRequest;
 import com.enzobf.cliente_pedido_kafka.dto.response.ClienteResponse;
 import com.enzobf.cliente_pedido_kafka.entity.Cliente;
@@ -66,6 +68,11 @@ public class ClienteService {
             .orElseThrow(() -> new ClienteNaoEncontradoException(id));
 
     return converterParaResponse(cliente);}
+    public Page<ClienteResponse> listar(Pageable pageable) {
+    return clienteRepository
+            .findAll(pageable)
+            .map(this::converterParaResponse);
+    }
 
     private void validarCpfDuplicado(String cpf) {
         if (clienteRepository.existsByCpf(cpf)) {
