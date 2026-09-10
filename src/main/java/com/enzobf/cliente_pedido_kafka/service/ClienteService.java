@@ -7,34 +7,40 @@ import org.springframework.stereotype.Service;
 import com.enzobf.cliente_pedido_kafka.dto.request.ClienteRequest;
 import com.enzobf.cliente_pedido_kafka.dto.response.ClienteResponse;
 import com.enzobf.cliente_pedido_kafka.entity.Cliente;
+import com.enzobf.cliente_pedido_kafka.exception.ClienteNaoEncontradoException;
 import com.enzobf.cliente_pedido_kafka.exception.CpfJaCadastradoException;
 import com.enzobf.cliente_pedido_kafka.repository.ClienteRepository;
 
-import lombok.RequiredArgsConstructor;
-
 @Service
-@RequiredArgsConstructor
 public class ClienteService {
 
     private final ClienteRepository clienteRepository;
 
-    public ClienteResponse cadastrar(ClienteRequest request) {
-        verificarCpfDuplicado(request.cpf());
+    public ClienteService(ClienteRepository clienteRepository) {
+        this.clienteRepository = clienteRepository;
+    }
 
-        Cliente cliente = Cliente.builder()
-                .nome(request.nome())
-                .cpf(request.cpf())
-                .email(request.email())
-                .dataCadastro(LocalDateTime.now())
-                .build();
+    public ClienteResponse cadastrar(ClienteRequest request) {
+        validarCpfDuplicado(request.cpf());
+
+        Cliente cliente = new Cliente();
+        cliente.setNome(request.nome());
+        cliente.setCpf(request.cpf());
+        cliente.setEmail(request.email());
+        cliente.setDataCadastro(LocalDateTime.now());
 
         Cliente clienteSalvo = clienteRepository.save(cliente);
 
         return converterParaResponse(clienteSalvo);
     }
+    public ClienteResponse buscarPorId(Long id) {
+    Cliente cliente = clienteRepository.findById(id)
+            .orElseThrow(() -> new ClienteNaoEncontradoException(id));
 
-    private void verificarCpfDuplicado(String cpf) {
-        if (clienteRepository.findByCpf(cpf).isPresent()) {
+    return converterParaResponse(cliente);}
+
+    private void validarCpfDuplicado(String cpf) {
+        if (clienteRepository.existsByCpf(cpf)) {
             throw new CpfJaCadastradoException(cpf);
         }
     }
@@ -48,4 +54,5 @@ public class ClienteService {
                 cliente.getDataCadastro()
         );
     }
+    
 }
