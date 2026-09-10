@@ -1,17 +1,36 @@
 package com.enzobf.cliente_pedido_kafka.exception;
 
-import com.enzobf.cliente_pedido_kafka.dto.response.ErroResponse;
+
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
-import java.util.stream.Collectors;
+import com.enzobf.cliente_pedido_kafka.dto.response.ErroResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler({
+        ValorInvalidoException.class,
+        DescontoInvalidoException.class
+    })
+    public ResponseEntity<ErroResponse> tratarRegraDeNegocio(
+        RuntimeException exception
+    ) {
+    ErroResponse erro = new ErroResponse(
+            LocalDateTime.now(),
+            HttpStatus.BAD_REQUEST.value(),
+            exception.getMessage()
+    );
+
+    return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(erro);
+        }
 
     @ExceptionHandler(CpfJaCadastradoException.class)
     public ResponseEntity<ErroResponse> tratarCpfJaCadastrado(

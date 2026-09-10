@@ -47,6 +47,26 @@ public class ClienteService {
                 .map(this::converterParaResponse);
     }
 
+    public ClienteResponse atualizar(Long id, ClienteRequest request) {
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new ClienteNaoEncontradoException(id));
+
+        clienteRepository.findByCpf(request.cpf())
+                .filter(clienteEncontrado ->
+                        !clienteEncontrado.getId().equals(cliente.getId()))
+                .ifPresent(clienteEncontrado -> {
+                    throw new CpfJaCadastradoException(request.cpf());
+                });
+
+        cliente.setNome(request.nome());
+        cliente.setCpf(request.cpf());
+        cliente.setEmail(request.email());
+
+        Cliente clienteAtualizado = clienteRepository.save(cliente);
+
+        return converterParaResponse(clienteAtualizado);
+    }
+
     private void verificarCpfDuplicado(String cpf) {
         if (clienteRepository.findByCpf(cpf).isPresent()) {
             throw new CpfJaCadastradoException(cpf);
