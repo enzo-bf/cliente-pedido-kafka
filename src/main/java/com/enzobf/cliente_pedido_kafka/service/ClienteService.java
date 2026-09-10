@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import com.enzobf.cliente_pedido_kafka.dto.request.ClienteRequest;
 import com.enzobf.cliente_pedido_kafka.dto.response.ClienteResponse;
 import com.enzobf.cliente_pedido_kafka.entity.Cliente;
@@ -13,7 +14,34 @@ import com.enzobf.cliente_pedido_kafka.repository.ClienteRepository;
 
 @Service
 public class ClienteService {
+    public void excluir(Long id) {
+    Cliente cliente = clienteRepository.findById(id)
+            .orElseThrow(() -> new ClienteNaoEncontradoException(id));
 
+    clienteRepository.delete(cliente);}
+    public ClienteResponse atualizar(Long id, ClienteRequest request) {
+    Cliente cliente = clienteRepository.findById(id)
+            .orElseThrow(() -> new ClienteNaoEncontradoException(id));
+
+    if (!cliente.getCpf().equals(request.cpf())
+            && clienteRepository.existsByCpf(request.cpf())) {
+        throw new CpfJaCadastradoException(request.cpf());
+    }
+
+    cliente.setNome(request.nome());
+    cliente.setCpf(request.cpf());
+    cliente.setEmail(request.email());
+
+    Cliente clienteAtualizado = clienteRepository.save(cliente);
+
+    return converterParaResponse(clienteAtualizado);
+    }
+    public List<ClienteResponse> listarTodos() {
+    return clienteRepository.findAll()
+            .stream()
+            .map(this::converterParaResponse)
+            .toList();
+    }
     private final ClienteRepository clienteRepository;
 
     public ClienteService(ClienteRepository clienteRepository) {
