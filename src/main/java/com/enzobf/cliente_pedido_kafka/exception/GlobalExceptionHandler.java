@@ -47,6 +47,23 @@ public class GlobalExceptionHandler {
                 .body(erro);
     }
 
+    @ExceptionHandler(PedidoNaoEncontradoException.class)
+    public ResponseEntity<ErroResponse> tratarPedidoNaoEncontrado(
+            PedidoNaoEncontradoException exception
+    ) {
+        HttpStatus status = HttpStatus.NOT_FOUND;
+
+        ErroResponse erro = new ErroResponse(
+                LocalDateTime.now(),
+                status.value(),
+                exception.getMessage()
+        );
+
+        return ResponseEntity
+                .status(status)
+                .body(erro);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErroResponse> tratarErrosDeValidacao(
             MethodArgumentNotValidException exception
