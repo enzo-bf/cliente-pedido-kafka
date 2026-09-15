@@ -33,11 +33,13 @@ public class ClienteService {
 
         return converterParaResponse(clienteSalvo);
     }
-    public ClienteResponse buscarPorId(Long id) {
-    Cliente cliente = clienteRepository.findById(id)
-            .orElseThrow(() -> new ClienteNaoEncontradoException(id));
 
-    return converterParaResponse(cliente);}
+    public ClienteResponse buscarPorId(Long id) {
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new ClienteNaoEncontradoException(id));
+
+        return converterParaResponse(cliente);
+    }
 
     private void validarCpfDuplicado(String cpf) {
         if (clienteRepository.existsByCpf(cpf)) {
