@@ -1,18 +1,23 @@
 package com.enzobf.cliente_pedido_kafka.repository;
 
-import com.enzobf.cliente_pedido_kafka.entity.Cliente;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.Optional;
 
-public interface ClienteRepository extends JpaRepository<Cliente, Long> {
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+import com.enzobf.cliente_pedido_kafka.entity.Cliente;
+
+public interface ClienteRepository extends JpaRepository<Cliente, Long>, JpaSpecificationExecutor<Cliente> {
 
     Optional<Cliente> findByCpf(String cpf);
 
-    Page<Cliente> findByNomeContainingIgnoreCase(
-            String nome,
-            Pageable pageable
-    );
+    Optional<Cliente> findByEmail(String email);
+
+    boolean existsByCpf(String cpf);
+
+    boolean existsByEmail(String email);
+
+    boolean existsByCpfAndIdNot(String cpf, Long id);
+
+    boolean existsByEmailAndIdNot(String email, Long id);
 }

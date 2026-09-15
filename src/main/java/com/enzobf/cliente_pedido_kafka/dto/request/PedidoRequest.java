@@ -18,14 +18,8 @@ public record PedidoRequest(
         BigDecimal valor,
 
         @NotNull(message = "O desconto é obrigatório")
-        @DecimalMin(
-                value = "0.0",
-                message = "O desconto não pode ser negativo"
-        )
-        @DecimalMax(
-                value = "20.0",
-                message = "O desconto não pode ser superior a 20%"
-        )
+        @DecimalMin(value = "0.0", message = "O desconto não pode ser negativo")
+        @DecimalMax(value = "20.0", message = "O desconto não pode ser superior a 20%")
         BigDecimal desconto,
 
         @NotNull(message = "O cliente é obrigatório")

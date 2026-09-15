@@ -13,6 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 @Entity
 @Table(name = "clientes")
 @Getter
@@ -26,14 +27,15 @@ public class Cliente {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 150)
     private String nome;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 14)
     private String cpf;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true, length = 180)
     private String email;
 
+    @Column(nullable = false)
     private LocalDateTime dataCadastro;
 }

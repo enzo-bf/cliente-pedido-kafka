@@ -1,6 +1,5 @@
 package com.enzobf.cliente_pedido_kafka.exception;
 
-
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
@@ -12,81 +11,61 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.enzobf.cliente_pedido_kafka.dto.response.ErroResponse;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
     @ExceptionHandler({
-        ValorInvalidoException.class,
-        DescontoInvalidoException.class
+            ValorInvalidoException.class,
+            DescontoInvalidoException.class,
+            StatusPedidoInvalidoException.class,
+            ClientePossuiPedidosException.class
     })
-    public ResponseEntity<ErroResponse> tratarRegraDeNegocio(
-        RuntimeException exception
-    ) {
-    ErroResponse erro = new ErroResponse(
-            LocalDateTime.now(),
-            HttpStatus.BAD_REQUEST.value(),
-            exception.getMessage()
-    );
-
-    return ResponseEntity
-            .status(HttpStatus.BAD_REQUEST)
-            .body(erro);
-        }
-
-    @ExceptionHandler(CpfJaCadastradoException.class)
-    public ResponseEntity<ErroResponse> tratarCpfJaCadastrado(
-            CpfJaCadastradoException exception
-    ) {
-        HttpStatus status = HttpStatus.CONFLICT;
-
-        ErroResponse erro = new ErroResponse(
-                LocalDateTime.now(),
-                status.value(),
-                exception.getMessage()
-        );
-
-        return ResponseEntity
-                .status(status)
-                .body(erro);
+    public ResponseEntity<ErroResponse> tratarRegraDeNegocio(RuntimeException exception) {
+        log.warn("Regra de negócio violada: {}", exception.getMessage());
+        return resposta(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
-    @ExceptionHandler(ClienteNaoEncontradoException.class)
-    public ResponseEntity<ErroResponse> tratarClienteNaoEncontrado(
-            ClienteNaoEncontradoException exception
-    ) {
-        HttpStatus status = HttpStatus.NOT_FOUND;
+    @ExceptionHandler({
+            CpfJaCadastradoException.class,
+            EmailJaCadastradoException.class
+    })
+    public ResponseEntity<ErroResponse> tratarConflito(RuntimeException exception) {
+        log.warn("Conflito de cadastro: {}", exception.getMessage());
+        return resposta(HttpStatus.CONFLICT, exception.getMessage());
+    }
 
-        ErroResponse erro = new ErroResponse(
-                LocalDateTime.now(),
-                status.value(),
-                exception.getMessage()
-        );
-
-        return ResponseEntity
-                .status(status)
-                .body(erro);
+    @ExceptionHandler({
+            ClienteNaoEncontradoException.class,
+            PedidoNaoEncontradoException.class
+    })
+    public ResponseEntity<ErroResponse> tratarNaoEncontrado(RuntimeException exception) {
+        log.warn("Recurso não encontrado: {}", exception.getMessage());
+        return resposta(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErroResponse> tratarErrosDeValidacao(
-            MethodArgumentNotValidException exception
-    ) {
-        HttpStatus status = HttpStatus.BAD_REQUEST;
-
-        String mensagens = exception
-                .getBindingResult()
+    public ResponseEntity<ErroResponse> tratarErrosDeValidacao(MethodArgumentNotValidException exception) {
+        String mensagens = exception.getBindingResult()
                 .getFieldErrors()
                 .stream()
                 .map(erro -> erro.getField() + ": " + erro.getDefaultMessage())
                 .collect(Collectors.joining("; "));
 
-        ErroResponse erro = new ErroResponse(
-                LocalDateTime.now(),
-                status.value(),
-                mensagens
-        );
+        log.warn("Falha de validação: {}", mensagens);
+        return resposta(HttpStatus.BAD_REQUEST, mensagens);
+    }
 
-        return ResponseEntity
-                .status(status)
-                .body(erro);
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErroResponse> tratarErroInesperado(Exception exception) {
+        log.error("Erro inesperado", exception);
+        return resposta(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno ao processar a requisição");
+    }
+
+    private ResponseEntity<ErroResponse> resposta(HttpStatus status, String mensagem) {
+        ErroResponse erro = new ErroResponse(LocalDateTime.now(), status.value(), mensagem);
+        return ResponseEntity.status(status).body(erro);
     }
 }
