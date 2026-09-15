@@ -15,5 +15,25 @@ spring:
       ddl-auto: update
     show-sql: true
 
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+    consumer:
+      group-id: cliente-pedido-kafka
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.enzobf.cliente_pedido_kafka.event
+
+app:
+  kafka:
+    topic:
+      pedidos-criados: pedidos.criados
+      particoes: 1
+      replicas: 1
+
 server:
   port: 8080
