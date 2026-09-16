@@ -3,6 +3,7 @@ package com.enzobf.cliente_pedido_kafka.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,16 +16,22 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import com.enzobf.cliente_pedido_kafka.dto.request.PedidoRequest;
 import com.enzobf.cliente_pedido_kafka.dto.response.PedidoResponse;
 import com.enzobf.cliente_pedido_kafka.entity.Cliente;
 import com.enzobf.cliente_pedido_kafka.entity.HistoricoPedido;
 import com.enzobf.cliente_pedido_kafka.entity.Pedido;
+import com.enzobf.cliente_pedido_kafka.event.PedidoAtualizadoEvent;
 import com.enzobf.cliente_pedido_kafka.event.PedidoCriadoEvent;
 import com.enzobf.cliente_pedido_kafka.exception.ClienteNaoEncontradoException;
 import com.enzobf.cliente_pedido_kafka.exception.PedidoNaoEncontradoException;
@@ -154,5 +161,153 @@ class PedidoServiceTest {
 
         assertThatThrownBy(() -> pedidoService.listarHistorico(99L))
                 .isInstanceOf(PedidoNaoEncontradoException.class);
+    }
+
+    @Test
+    void deveListarPedidosComFiltrosPaginado() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Pedido pedido = pedido(new BigDecimal("600.00"));
+
+        when(pedidoRepository.findAll(ArgumentMatchers.<Specification<Pedido>>any(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(pedido), pageable, 1));
+
+        var pagina = pedidoService.listar(1L, new BigDecimal("100"), new BigDecimal("1000"), pageable);
+
+        assertThat(pagina.getTotalElements()).isEqualTo(1);
+        assertThat(pagina.getContent().get(0).id()).isEqualTo(10L);
+    }
+
+    @Test
+    void deveListarHistoricoPorTipoEvento() {
+        Pageable pageable = PageRequest.of(0, 10);
+        HistoricoPedido historico = new HistoricoPedido(
+                1L, 10L, "PEDIDO_ATUALIZADO", LocalDateTime.now(), "Desconto recalculado");
+
+        when(historicoPedidoRepository.findByTipoEvento(eq("PEDIDO_ATUALIZADO"), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(historico), pageable, 1));
+
+        var pagina = pedidoService.listarHistoricoPorTipoEvento("PEDIDO_ATUALIZADO", pageable);
+
+        assertThat(pagina.getTotalElements()).isEqualTo(1);
+        assertThat(pagina.getContent().get(0).tipoEvento()).isEqualTo("PEDIDO_ATUALIZADO");
+        verify(historicoPedidoRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void deveListarTodoHistoricoQuandoTipoEventoNaoInformado() {
+        Pageable pageable = PageRequest.of(0, 10);
+        HistoricoPedido historico = new HistoricoPedido(
+                1L, 10L, "PEDIDO_PROCESSADO", LocalDateTime.now(), "Desconto aplicado");
+
+        when(historicoPedidoRepository.findAll(pageable))
+                .thenReturn(new PageImpl<>(List.of(historico), pageable, 1));
+
+        var pagina = pedidoService.listarHistoricoPorTipoEvento(null, pageable);
+
+        assertThat(pagina.getTotalElements()).isEqualTo(1);
+        verify(historicoPedidoRepository, never()).findByTipoEvento(any(), any());
+    }
+
+    @Test
+    void deveAtualizarPedidoEPublicarEventoDeAtualizacao() {
+        Pedido pedido = pedido(new BigDecimal("1000.00"));
+        pedido.setDesconto(new BigDecimal("100.00"));
+        pedido.setValorFinal(new BigDecimal("900.00"));
+
+        PedidoRequest request = new PedidoRequest(1L, "Notebook Pro", new BigDecimal("1200.00"));
+
+        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+        when(clienteRepository.findById(1L)).thenReturn(Optional.of(cliente()));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PedidoResponse response = pedidoService.atualizar(10L, request);
+
+        assertThat(response.descricao()).isEqualTo("Notebook Pro");
+        assertThat(response.valor()).isEqualByComparingTo("1200.00");
+        assertThat(response.desconto()).isNull();
+        assertThat(response.valorFinal()).isNull();
+
+        ArgumentCaptor<PedidoAtualizadoEvent> captor = ArgumentCaptor.forClass(PedidoAtualizadoEvent.class);
+        verify(pedidoEventProducer).publicarPedidoAtualizado(captor.capture());
+
+        assertThat(captor.getValue().pedidoId()).isEqualTo(10L);
+        assertThat(captor.getValue().valor()).isEqualByComparingTo("1200.00");
+    }
+
+    @Test
+    void naoDeveAtualizarPedidoParaClienteInexistente() {
+        Pedido pedido = pedido(new BigDecimal("1000.00"));
+        PedidoRequest request = new PedidoRequest(99L, "Notebook", new BigDecimal("1000.00"));
+
+        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+        when(clienteRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> pedidoService.atualizar(10L, request))
+                .isInstanceOf(ClienteNaoEncontradoException.class);
+
+        verify(pedidoRepository, never()).save(any());
+        verify(pedidoEventProducer, never()).publicarPedidoAtualizado(any());
+    }
+
+    @Test
+    void deveFalharAoAtualizarPedidoInexistente() {
+        when(pedidoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        PedidoRequest request = new PedidoRequest(1L, "Notebook", new BigDecimal("1000.00"));
+
+        assertThatThrownBy(() -> pedidoService.atualizar(99L, request))
+                .isInstanceOf(PedidoNaoEncontradoException.class);
+    }
+
+    @Test
+    void deveExcluirPedido() {
+        Pedido pedido = pedido(new BigDecimal("1000.00"));
+
+        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.excluir(10L);
+
+        verify(pedidoRepository).delete(pedido);
+    }
+
+    @Test
+    void deveFalharAoExcluirPedidoInexistente() {
+        when(pedidoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> pedidoService.excluir(99L))
+                .isInstanceOf(PedidoNaoEncontradoException.class);
+    }
+
+    @Test
+    void deveAplicarDescontoERegistrarHistoricoAtualizadoAoProcessarEventoDeAtualizacao() {
+        Pedido pedido = pedido(new BigDecimal("1000.00"));
+
+        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.processarPedidoAtualizado(new PedidoAtualizadoEvent(
+                10L, 1L, pedido.getDescricao(), pedido.getValor(), LocalDateTime.now()));
+
+        assertThat(pedido.getDesconto()).isEqualByComparingTo("100.00");
+        assertThat(pedido.getValorFinal()).isEqualByComparingTo("900.00");
+
+        ArgumentCaptor<HistoricoPedido> captor = ArgumentCaptor.forClass(HistoricoPedido.class);
+        verify(historicoPedidoRepository).save(captor.capture());
+
+        assertThat(captor.getValue().getTipoEvento()).isEqualTo("PEDIDO_ATUALIZADO");
+    }
+
+    @Test
+    void deveIgnorarEventoDeAtualizacaoDePedidoJaProcessado() {
+        Pedido pedido = pedido(new BigDecimal("1000.00"));
+        pedido.setDesconto(new BigDecimal("100.00"));
+        pedido.setValorFinal(new BigDecimal("900.00"));
+
+        when(pedidoRepository.findById(10L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.processarPedidoAtualizado(new PedidoAtualizadoEvent(
+                10L, 1L, pedido.getDescricao(), pedido.getValor(), LocalDateTime.now()));
+
+        verify(pedidoRepository, never()).save(any());
+        verify(historicoPedidoRepository, never()).save(any());
     }
 }

@@ -1,12 +1,19 @@
 package com.enzobf.cliente_pedido_kafka.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -46,10 +53,30 @@ public class PedidoController {
     }
 
     @GetMapping
-    public ResponseEntity<List<PedidoResponse>> listarPorCliente(
-            @RequestParam Long clienteId
+    public ResponseEntity<Page<PedidoResponse>> listar(
+            @RequestParam(required = false) Long clienteId,
+            @RequestParam(required = false) BigDecimal valorMin,
+            @RequestParam(required = false) BigDecimal valorMax,
+            @PageableDefault(size = 10, sort = "dataCriacao", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return ResponseEntity.ok(pedidoService.listarPorCliente(clienteId));
+        return ResponseEntity.ok(pedidoService.listar(clienteId, valorMin, valorMax, pageable));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<PedidoResponse> atualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody PedidoRequest request
+    ) {
+        return ResponseEntity.ok(pedidoService.atualizar(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> excluir(
+            @PathVariable Long id
+    ) {
+        pedidoService.excluir(id);
+
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}/historico")

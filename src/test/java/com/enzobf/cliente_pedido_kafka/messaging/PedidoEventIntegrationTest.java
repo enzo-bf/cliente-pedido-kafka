@@ -19,7 +19,7 @@ import com.enzobf.cliente_pedido_kafka.repository.ClienteRepository;
 import com.enzobf.cliente_pedido_kafka.service.PedidoService;
 
 @SpringBootTest(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
-@EmbeddedKafka(topics = "pedidos.criados", partitions = 1)
+@EmbeddedKafka(topics = {"pedidos.criados", "pedidos.atualizados"}, partitions = 1)
 class PedidoEventIntegrationTest {
 
     @Autowired
@@ -47,6 +47,35 @@ class PedidoEventIntegrationTest {
                     .singleElement()
                     .satisfies(historico ->
                             assertThat(historico.tipoEvento()).isEqualTo("PEDIDO_PROCESSADO"));
+        });
+    }
+
+    @Test
+    void deveProcessarAtualizacaoDePedidoPublicadaNoKafkaEGerarNovoHistorico() {
+        Cliente cliente = clienteRepository.save(new Cliente(
+                null, "Enzo", "98765432101", "enzo@email.com", LocalDateTime.now()));
+
+        PedidoResponse pedido = pedidoService.cadastrar(new PedidoRequest(
+                cliente.getId(), "Notebook", new BigDecimal("1000.00")));
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+                assertThat(pedidoService.buscarPorId(pedido.id()).valorFinal())
+                        .isEqualByComparingTo("900.00"));
+
+        PedidoResponse atualizado = pedidoService.atualizar(pedido.id(), new PedidoRequest(
+                cliente.getId(), "Notebook Pro", new BigDecimal("2000.00")));
+
+        assertThat(atualizado.valorFinal()).isNull();
+
+        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+            PedidoResponse processado = pedidoService.buscarPorId(pedido.id());
+
+            assertThat(processado.desconto()).isEqualByComparingTo("200.00");
+            assertThat(processado.valorFinal()).isEqualByComparingTo("1800.00");
+            assertThat(pedidoService.listarHistorico(pedido.id()))
+                    .hasSize(2)
+                    .anySatisfy(historico ->
+                            assertThat(historico.tipoEvento()).isEqualTo("PEDIDO_ATUALIZADO"));
         });
     }
 }

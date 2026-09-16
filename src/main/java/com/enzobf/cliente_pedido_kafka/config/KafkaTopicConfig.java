@@ -18,4 +18,13 @@ public class KafkaTopicConfig {
                 .replicas(properties.replicas())
                 .build();
     }
+
+    @Bean
+    public NewTopic pedidosAtualizadosTopic(KafkaTopicProperties properties) {
+        return TopicBuilder
+                .name(properties.pedidosAtualizados())
+                .partitions(properties.particoes())
+                .replicas(properties.replicas())
+                .build();
+    }
 }
