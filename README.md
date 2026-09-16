@@ -1,17 +1,73 @@
-# cliente-pedido-kafka
+# Cliente Pedido Kafka
+
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.8-6DB33F?logo=springboot&logoColor=white)
+![Apache Kafka](https://img.shields.io/badge/Apache%20Kafka-Event--Driven-231F20?logo=apachekafka&logoColor=white)
+![Maven](https://img.shields.io/badge/Maven-Build-C71A36?logo=apachemaven&logoColor=white)
+![JUnit5](https://img.shields.io/badge/JUnit-5-25A162?logo=junit5&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-66%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-internal--challenge-lightgrey)
 
 API REST em Spring Boot para cadastro de clientes e pedidos, com processamento
 assíncrono dos pedidos via Apache Kafka: o pedido é criado (ou atualizado) de
 forma síncrona e o cálculo do desconto e o registro no histórico acontecem no
 consumidor do evento correspondente.
 
-## Stack
+## Visão Geral
 
-- Java 17 e Spring Boot 4.0.8 (Web MVC, Validation, Data JPA, Kafka)
-- Banco H2 em memória (console em `/h2-console`)
-- Apache Kafka (broker local via Docker Compose)
-- Lombok
-- Testes: JUnit 5, Mockito, AssertJ, MockMvcTester e Embedded Kafka
+O fluxo central da aplicação é o processamento assíncrono de um pedido, do
+cadastro até a geração do histórico:
+
+```
+Cliente
+  |
+  v
+Pedido  (POST/PUT /pedidos — salvo de forma síncrona, desconto/valorFinal = null)
+  |
+  v
+Kafka Producer  (PedidoEventProducer)
+  |
+  v
+Tópico  (pedidos.criados | pedidos.atualizados)
+  |
+  v
+Kafka Consumer  (PedidoEventConsumer — aplica CalculadoraDesconto, idempotente)
+  |
+  v
+HistoricoPedido  (PEDIDO_PROCESSADO | PEDIDO_ATUALIZADO)
+```
+
+Ou seja: a API nunca calcula o desconto na requisição — ela apenas persiste o
+pedido e publica um evento. Quem calcula o desconto, atualiza `valorFinal` e
+grava a entrada de histórico é o consumidor Kafka, de forma assíncrona e
+idempotente (reprocessar o mesmo evento não gera desconto nem histórico
+duplicados).
+
+## Funcionalidades
+
+- ✅ CRUD completo de Clientes (criar, buscar, listar, atualizar, excluir)
+- ✅ CRUD completo de Pedidos (criar, buscar, listar, atualizar, excluir)
+- ✅ Kafka Producer (`pedidos.criados`, `pedidos.atualizados`)
+- ✅ Kafka Consumer com cálculo de desconto assíncrono
+- ✅ Histórico de processamento por pedido e transversal (por tipo de evento)
+- ✅ Idempotência no processamento dos eventos Kafka
+- ✅ Filtros combináveis (CPF/nome em clientes; cliente/faixa de valor em pedidos; tipo de evento no histórico)
+- ✅ Paginação (`page`, `size`) em todos os endpoints de listagem
+- ✅ Ordenação (`sort`) em todos os endpoints de listagem
+- ✅ Testes automatizados (66 testes: unitários, integração com H2 real e Kafka embarcado)
+- ✅ Documentação OpenAPI/Swagger completa
+- ✅ Collection Postman pronta para uso
+
+## Tecnologias
+
+- **Java 17**
+- **Spring Boot 4.0.8** (Web MVC, Validation, Data JPA, Kafka)
+- **Apache Kafka** (broker local via Docker Compose)
+- **H2** (banco em memória, console em `/h2-console`)
+- **springdoc-openapi / Swagger UI** (documentação interativa da API)
+- **Lombok**
+- **JUnit 5**, **Mockito**, **AssertJ**, **MockMvcTester** e **Embedded Kafka** (testes)
+- **Maven** (build)
 
 ## Arquitetura
 
@@ -36,8 +92,8 @@ controller  ->  service  ->  repository (+ Specification)  ->  H2
 - `dto/request`, `dto/response`: contratos de entrada e saída da API
 - `event`: `PedidoCriadoEvent`, `PedidoAtualizadoEvent`, mensagens trafegadas no Kafka
 - `messaging`: produtor e consumidor Kafka
-- `config`: criação dos tópicos e propriedades `app.kafka.topic.*`
-- `repository/specification`: `ClienteSpecification` e `PedidoSpecification`, usadas
+- `config`: criação dos tópicos, propriedades `app.kafka.topic.*` e metadados do Swagger (`OpenApiConfig`)
+- `repository`: `ClienteSpecification` e `PedidoSpecification`, usadas
   para combinar filtros opcionais nas listagens
 - `exception`: exceções de domínio e `GlobalExceptionHandler`
 
@@ -65,21 +121,58 @@ Aplicadas no processamento assíncrono (`CalculadoraDesconto`), com arredondamen
 O processamento é idempotente: eventos repetidos para um pedido que já possui
 `valorFinal` são ignorados.
 
-## Como executar
+## Executando Localmente
 
-1. Suba o broker Kafka:
+Pré-requisitos: JDK 17+, Maven (ou use o `./mvnw` incluído no projeto) e Docker
+(para subir o Kafka local).
+
+1. Clone o repositório e entre na pasta do projeto:
+
+```bash
+git clone <url-do-repositorio>
+cd cliente-pedido-kafka
+```
+
+2. Suba o broker Kafka:
 
 ```bash
 docker compose up -d
 ```
 
-2. Execute a aplicação:
+3. Compile e execute a aplicação:
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-A API sobe em `http://localhost:8080`.
+4. A API sobe em `http://localhost:8080`. O console do H2 fica disponível em
+   `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:testdb`).
+
+5. Acesse a documentação interativa (Swagger UI) em:
+
+```
+http://localhost:8080/swagger-ui.html
+```
+
+O JSON da especificação OpenAPI fica em `http://localhost:8080/v3/api-docs`.
+
+6. (Opcional) Importe `ClientePedidoKafka.postman_collection.json` no Postman
+   para testar todos os endpoints com exemplos de payload já prontos.
+
+## Executando Testes
+
+```bash
+./mvnw test
+```
+
+Os testes não exigem Kafka nem banco externos: o fluxo assíncrono é validado com
+`@EmbeddedKafka` e a persistência com H2 em memória. Além dos testes de
+controller e service (unitários, com Mockito), há testes de integração com
+`@SpringBootTest` que exercitam os filtros (`ClienteSpecification`,
+`PedidoSpecification`) e a paginação diretamente contra o H2, e um teste de
+ponta a ponta para o fluxo de criação/atualização de pedido via Kafka
+(`PedidoEventIntegrationTest`). Ao todo, **66 testes** cobrem controllers,
+services, repositories e a integração com Kafka.
 
 ## Endpoints
 
@@ -120,7 +213,12 @@ curl "http://localhost:8080/clientes?nome=Joao"
 | PUT    | `/pedidos/{id}`             | Atualiza pedido e publica `PEDIDO_ATUALIZADO`    | 200, 400, 404 |
 | DELETE | `/pedidos/{id}`             | Exclui um pedido                                 | 204, 404      |
 | GET    | `/pedidos/{id}/historico`   | Lista o histórico de um pedido específico        | 200, 404      |
-| GET    | `/historico-pedidos`        | Lista histórico de todos os pedidos (paginado, com filtro por tipo de evento) | 200 |
+
+### Histórico
+
+| Método | Rota                  | Descrição                                                                     | Respostas |
+| ------ | --------------------- | ------------------------------------------------------------------------------ | --------- |
+| GET    | `/historico-pedidos`  | Lista histórico de todos os pedidos (paginado, com filtro por tipo de evento) | 200       |
 
 ```bash
 curl -X POST http://localhost:8080/pedidos \
@@ -152,9 +250,9 @@ esses campos são preenchidos e uma entrada (`PEDIDO_PROCESSADO` ou
 
 ### Paginação e ordenação
 
-Os endpoints de listagem introduzidos nesta versão (`GET /clientes`,
-`GET /pedidos` e `GET /historico-pedidos`) aceitam os parâmetros padrão do
-Spring Data (`Pageable`):
+Os endpoints de listagem (`GET /clientes`, `GET /pedidos` e
+`GET /historico-pedidos`) aceitam os parâmetros padrão do Spring Data
+(`Pageable`):
 
 - `page`: número da página, começando em 0 (padrão: `0`)
 - `size`: tamanho da página (padrão: `10`)
@@ -180,12 +278,59 @@ foi mantido como já estava, retornando uma lista simples, para não quebrar o
 contrato já existente; para navegar de forma paginada pelo histórico de todos
 os pedidos, use `GET /historico-pedidos`.
 
-### Erros
+## Exemplos de Resposta
 
-Todos os erros seguem o contrato `ErroResponse`:
+### ClienteResponse
 
 ```json
-{ "timestamp": "2025-01-01T10:00:00", "status": 404, "message": "Pedido não encontrado com o ID: 99" }
+{
+  "id": 1,
+  "nome": "Enzo Ferreira",
+  "cpf": "12345678901",
+  "email": "enzo@email.com",
+  "dataCadastro": "2026-09-16T10:00:00"
+}
+```
+
+### PedidoResponse
+
+```json
+{
+  "id": 10,
+  "clienteId": 1,
+  "descricao": "Notebook",
+  "valor": 1000.00,
+  "desconto": 100.00,
+  "valorFinal": 900.00,
+  "dataCriacao": "2026-09-16T10:05:00"
+}
+```
+
+> Logo após o `POST`/`PUT`, `desconto` e `valorFinal` vêm `null` — os valores
+> acima refletem o pedido já processado pelo consumidor Kafka.
+
+### Histórico (HistoricoPedidoResponse)
+
+```json
+{
+  "id": 5,
+  "pedidoId": 10,
+  "tipoEvento": "PEDIDO_PROCESSADO",
+  "dataProcessamento": "2026-09-16T10:05:02",
+  "descricao": "Pedido processado com desconto de 10%"
+}
+```
+
+### Erro (ErroResponse)
+
+Todos os erros seguem este contrato, retornado pelo `GlobalExceptionHandler`:
+
+```json
+{
+  "timestamp": "2026-09-16T10:10:00",
+  "status": 404,
+  "message": "Pedido não encontrado com o ID: 99"
+}
 ```
 
 ## Configuração
@@ -199,16 +344,4 @@ Todos os erros seguem o contrato `ErroResponse`:
 | `app.kafka.topic.particoes`           | `1`                    | Partições dos tópicos              |
 | `app.kafka.topic.replicas`            | `1`                    | Réplicas dos tópicos               |
 
-## Testes
-
-```bash
-./mvnw test
-```
-
-Os testes não exigem Kafka nem banco externos: o fluxo assíncrono é validado com
-`@EmbeddedKafka` e a persistência com H2 em memória. Além dos testes de
-controller e service (unitários, com Mockito), há testes de integração com
-`@SpringBootTest` que exercitam os filtros (`ClienteSpecification`,
-`PedidoSpecification`) e a paginação diretamente contra o H2, e um teste de
-ponta a ponta para o fluxo de atualização de pedido via Kafka
-(`PedidoEventIntegrationTest`).
+Veja a seção [Executando Testes](#executando-testes) acima para rodar a suíte.

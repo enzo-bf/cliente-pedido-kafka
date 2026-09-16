@@ -1,0 +1,243 @@
+{
+  "info": {
+    "name": "Cliente Pedido Kafka",
+    "description": "Coleção de exemplos para a API REST cliente-pedido-kafka: cadastro de clientes e pedidos, com processamento assíncrono via Apache Kafka (desconto e histórico calculados pelo consumidor). Baseado em http://localhost:8080.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "c1e0a1a0-6b8b-4e6b-9f3a-cliente-pedido-kafka"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "clienteId", "value": "1", "type": "string" },
+    { "key": "pedidoId", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Criar cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Enzo Ferreira\",\n  \"cpf\": \"12345678901\",\n  \"email\": \"enzo@email.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "clientes" ]
+            },
+            "description": "Cadastra um novo cliente. Retorna 201 Created com o cliente criado, ou 409 Conflict se o CPF já estiver cadastrado."
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar cliente por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "clientes", "{{clienteId}}" ]
+            },
+            "description": "Retorna os dados de um cliente pelo ID. Retorna 404 se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar clientes (paginado, com filtros)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes?page=0&size=10&sort=nome,asc&nome=Enzo&cpf=",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "clientes" ],
+              "query": [
+                { "key": "page", "value": "0", "description": "Número da página (padrão 0)" },
+                { "key": "size", "value": "10", "description": "Tamanho da página (padrão 10)" },
+                { "key": "sort", "value": "nome,asc", "description": "Campo e direção de ordenação" },
+                { "key": "nome", "value": "Enzo", "description": "Filtro por nome (contém, case-insensitive)" },
+                { "key": "cpf", "value": "", "description": "Filtro por CPF exato", "disabled": true }
+              ]
+            },
+            "description": "Lista clientes de forma paginada. Os filtros `cpf` e `nome` são opcionais e combináveis."
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar cliente",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Enzo Ferreira Atualizado\",\n  \"cpf\": \"12345678901\",\n  \"email\": \"enzo.novo@email.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "clientes", "{{clienteId}}" ]
+            },
+            "description": "Atualiza um cliente existente. Retorna 404 se não existir, ou 409 se o novo CPF pertencer a outro cliente."
+          },
+          "response": []
+        },
+        {
+          "name": "Excluir cliente",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "clientes", "{{clienteId}}" ]
+            },
+            "description": "Remove um cliente pelo ID. Retorna 204 No Content, ou 404 se não existir."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pedidos",
+      "item": [
+        {
+          "name": "Criar pedido",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteId}},\n  \"descricao\": \"Notebook\",\n  \"valor\": 1000.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pedidos",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos" ]
+            },
+            "description": "Cria um pedido e publica o evento PEDIDO_CRIADO no Kafka. A resposta traz `desconto` e `valorFinal` nulos até o processamento assíncrono ser concluído."
+          },
+          "response": []
+        },
+        {
+          "name": "Buscar pedido por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{pedidoId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos", "{{pedidoId}}" ]
+            },
+            "description": "Retorna os dados de um pedido pelo ID, incluindo desconto e valor final já calculados (se o processamento assíncrono já ocorreu)."
+          },
+          "response": []
+        },
+        {
+          "name": "Listar pedidos (paginado, com filtros)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos?page=0&size=10&sort=dataCriacao,desc&clienteId=&valorMin=100&valorMax=1000",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos" ],
+              "query": [
+                { "key": "page", "value": "0", "description": "Número da página (padrão 0)" },
+                { "key": "size", "value": "10", "description": "Tamanho da página (padrão 10)" },
+                { "key": "sort", "value": "dataCriacao,desc", "description": "Campo e direção de ordenação" },
+                { "key": "clienteId", "value": "", "description": "Filtra pedidos de um cliente específico", "disabled": true },
+                { "key": "valorMin", "value": "100", "description": "Valor mínimo (inclusive)" },
+                { "key": "valorMax", "value": "1000", "description": "Valor máximo (inclusive)" }
+              ]
+            },
+            "description": "Lista pedidos de forma paginada. Os filtros `clienteId`, `valorMin` e `valorMax` são opcionais e combináveis."
+          },
+          "response": []
+        },
+        {
+          "name": "Atualizar pedido",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteId}},\n  \"descricao\": \"Notebook Pro\",\n  \"valor\": 2000.00\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{pedidoId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos", "{{pedidoId}}" ]
+            },
+            "description": "Atualiza um pedido e publica o evento PEDIDO_ATUALIZADO no Kafka. Desconto e valor final são zerados e recalculados de forma assíncrona."
+          },
+          "response": []
+        },
+        {
+          "name": "Excluir pedido",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{pedidoId}}",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos", "{{pedidoId}}" ]
+            },
+            "description": "Remove um pedido pelo ID. Retorna 204 No Content, ou 404 se não existir."
+          },
+          "response": []
+        },
+        {
+          "name": "Histórico de um pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/pedidos/{{pedidoId}}/historico",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "pedidos", "{{pedidoId}}", "historico" ]
+            },
+            "description": "Lista, em ordem cronológica, o histórico de eventos (PEDIDO_PROCESSADO, PEDIDO_ATUALIZADO) de um pedido específico. Retorna uma lista simples (não paginada)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Histórico",
+      "item": [
+        {
+          "name": "Buscar histórico por tipoEvento",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/historico-pedidos?tipoEvento=PEDIDO_PROCESSADO&page=0&size=10&sort=dataProcessamento,desc",
+              "host": [ "{{baseUrl}}" ],
+              "path": [ "historico-pedidos" ],
+              "query": [
+                { "key": "tipoEvento", "value": "PEDIDO_PROCESSADO", "description": "Filtra por tipo de evento (ex.: PEDIDO_PROCESSADO, PEDIDO_ATUALIZADO). Opcional." },
+                { "key": "page", "value": "0", "description": "Número da página (padrão 0)" },
+                { "key": "size", "value": "10", "description": "Tamanho da página (padrão 10)" },
+                { "key": "sort", "value": "dataProcessamento,desc", "description": "Campo e direção de ordenação" }
+              ]
+            },
+            "description": "Lista, de forma paginada, o histórico de processamento de todos os pedidos, com filtro opcional por tipo de evento."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
